@@ -7,6 +7,12 @@ from rest_framework import status
 from .serializers import RegisterSerializer, LoginSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from .permissions import IsMerchant
+from .models import User
+from order.models import Order, OrderItem
+from cart.models import Cart
+from api.models import Product
+from .permissions import IsAdmin, IsMerchant
+from rest_framework.permissions import IsAuthenticated
 
 class MerchantOnlyView(APIView):
     permission_classes = [IsMerchant]
@@ -69,3 +75,46 @@ class LoginView(APIView):
             })
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    #Role dashboard
+class CustomerDashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        order = Order.objects.filter(user=request.user)
+        cart = Cart.objects.get(user=request.user)
+        return Response({
+            "username": request.user.username,
+            "role": request.user.role,
+            "total_orders": order.count(),
+        })
+ 
+class MerchantDashboardView(APIView):
+    permission_classes = [IsMerchant]
+    def get(self, request):
+        products = Product.objects.filter(seller=request.user)
+        sold_items = OrderItem.objects.filter(product__seller=request.user)
+        total_sales = sum(item.price * item.quantity for item in sold_items)
+        return Response({
+            "merchant": request.user.username,
+            "total_products": products.count(),
+            "total_sales": total_sales
+        })
+class AdminDashboardView(APIView):
+    permission_classes = [IsAdmin]
+    def get(self, request):
+        return Response({
+            "total_users": User.objects.count(),
+            "total_products": Product.objects.count(),
+            "total_orders": Order.objects.count(),
+            "merchants": User.objects.filter(role='merchant').count(),
+            "customers": User.objects.filter(role='customer').count()
+        })
+class UpgradeToMerchantView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        if request.user.role == 'merchant':
+            return Response({"message": "Already a merchant"})
+        request.user.role = 'merchant'
+        request.user.save()
+        return Response({"message": "Upgraded to merchant successfully"})

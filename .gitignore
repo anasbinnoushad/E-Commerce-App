@@ -1,0 +1,9 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Local data and environment configuration
+*.sqlite3
+.env
+.env.*
+!.env.example
